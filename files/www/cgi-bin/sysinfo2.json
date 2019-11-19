@@ -1,0 +1,174 @@
+#!/usr/bin/lua
+--[[
+
+	Part of AREDN -- Used for creating Amateur Radio Emergency Data Networks
+	Copyright (C) 2016 Darryl Quinn
+	See Contributors file for additional contributors
+
+	This program is free software: you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation version 3 of the License.
+
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with this program.	If not, see <http://www.gnu.org/licenses/>.
+
+	Additional Terms:
+
+	Additional use restrictions exist on the AREDN(TM) trademark and logo.
+		See AREDNLicense.txt for more info.
+
+	Attributions to the AREDN Project must be retained in the source code.
+	If importing this code into a new or existing project attribution
+	to the AREDN project must be added to the source code.
+
+	You must not misrepresent the origin of the material contained within.
+
+	Modified versions must be modified to attribute to the original source
+	and be marked in reasonable ways as differentiate it from the original
+	version
+
+	# W4HAC
+	so testing some initial changes
+	probably switch to daemon that pushes
+
+--]]
+
+require("uci")
+require("aredn.utils")
+local aredn_info = require("aredn.info")
+local aredn_olsr = require("aredn.olsr")
+require("aredn.http")
+require("nixio")
+local ipc = require("luci.ip")
+local json = require ("luci.jsonc")
+
+-- Function extensions
+os.capture = capture
+
+-- ==== MAIN =====
+ctx = uci.cursor()
+if not ctx then
+		error("Failed to get uci cursor")
+end
+
+info={}
+
+-- API version
+info['api_version']="2.0"
+
+
+-- NODE name
+info['node']=aredn_info.getNodeName()
+
+info['node_details']={}
+-- MODEL
+info['node_details']['model']=aredn_info.getModel()
+
+-- DESCRIPTION
+info['node_details']['description']=aredn_info.getNodeDescription()
+
+-- BOARD ID
+info['node_details']['board_id']=hardware_boardid()
+
+-- Firmware Manufacturer
+local fw_mfg="AREDN"
+if not file_exists("/www/AREDN.png") then
+	fw_mfg = "Other"
+end
+info['node_details']['firmware_mfg']=fw_mfg
+
+-- Firmware version
+info['node_details']['firmware_version']=aredn_info.getFirmwareVersion()
+
+-- Mesh RF info
+info['meshrf']={}
+local radio=aredn_info.getMeshRadioDevice()
+
+if ( radio ~= nill and radio ~= "" ) then
+	info['meshrf']['status']="on"
+	info['meshrf']['ssid']=aredn_info.getSSID()
+	info['meshrf']['channel']=aredn_info.getChannel(radio)
+	info['meshrf']['chanbw']=aredn_info.getChannelBW(radio)
+	info['meshrf']['freq']=aredn_info.getFreq()
+else
+	info['meshrf']['status']="off"
+end
+
+-- Tunnel info
+info['tunnels']={}
+-- Tunnel Installed
+local tunnel_installed=false
+if file_exists("/usr/sbin/vtund") then
+	tunnel_installed="true"
+end
+info['tunnels']['tunnel_installed']=tunnel_installed
+-- ACTIVE TUNNELS
+local atc=""
+atc=os.capture("ifconfig|grep tun|wc -l")
+info['tunnels']['active_tunnel_count']=atc:chomp()
+
+-- Location info
+-- LAT/LON
+local lat, lon = aredn_info.getLatLon()
+info['lat']=lat
+info['lon']=lon
+
+-- GRID SQUARE
+info["grid_square"]=aredn_info.getGridSquare()
+
+-- UPTIME,LOADAVGS, memory and cpu
+mynix=nixio.sysinfo()
+info['sysinfo']={}
+upsecs=mynix['uptime']
+info['sysinfo']['uptime']=secondsToClock(upsecs)
+info['sysinfo']['loads']=mynix['loads']
+for n,x in ipairs(info['sysinfo']['loads']) do
+	info['sysinfo']['loads'][n]=round2(x,2)
+end
+
+info['sysinfo']['memory']=getFreeMemory()
+info['sysinfo']['storage']=aredn_info.getFSFree()
+
+-- INTERFACES
+local tif={}
+local ift=get_interfaces()
+
+for pos, i in pairs(ift) do
+	local nim={}
+	local ipv4=""
+	if (i.name ~= "lo" and i.name ~= "wlan0-1" and i.name ~= "wlan1-1") then
+		--table.print(i)
+		nim['name']=i.name
+		ipv4=tostring(i.ipaddrs[1])
+		nim['ip']=ipFromCIDR(ipv4)
+		if i.macaddr~=nil then	-- ie. tunXX interfaces have nil for macaddr
+			nim['mac']=i.macaddr:upper()
+		end
+		table.insert(tif,nim)
+	end
+end
+info['interfaces']=tif
+
+-- HOSTS
+info['hosts']=aredn_info.all_hosts()
+
+-- SERVICES
+info['services']=aredn_info.all_services()
+
+-- LOCALLY HOSTED SERVICES
+info['services_local']=aredn_info.local_services()
+
+-- LOCAL NEIGHBORS LINK INFO
+info['link_info']=aredn_olsr.getCurrentNeighbors(true)
+
+
+-- Output the HTTP header for JSON
+json_header()
+
+-- Output the info table as json
+print(json.stringify(info,true))
