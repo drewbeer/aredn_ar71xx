@@ -1138,6 +1138,15 @@ sub hardware_info
       'rfband'          => '2400',
       'chanpower'       => { 1 => '13', 10 => '18', 11 => '13', 14 => '27' },
     },
+    'Mikrotik RouterBOARD 911G-2HPnD' => {
+      'name'            => 'Mikrotik RouterBOARD 911G-2HPnD',
+      'comment'         => '',
+      'supported'       => '1',
+      'maxpower'        => '30',
+      'pwroffset'       => '0',
+      'usechains'       => 1,
+      'rfband'          => '2400',
+    },
     'Mikrotik RouterBOARD 911G-5HPnD' => {
       'name'            => 'Mikrotik RouterBOARD 911G-5HPnD',
       'comment'         => '',
@@ -1293,6 +1302,15 @@ sub hardware_info
     },
     'MikroTik RouterBOARD SXTsq 2nD' => {
       'name'            => 'MikroTik RouterBOARD SXTsq 2nD',
+      'comment'         => '',
+      'supported'       => '1',
+      'maxpower'        => '30',
+      'pwroffset'       => '0',
+      'usechains'       => 1,
+      'rfband'          => '2400',
+    },
+    'MikroTik RouterBOARD RBSXTsq2nD' => {
+      'name'            => 'MikroTik RouterBOARD RBSXTsq2nD',
       'comment'         => '',
       'supported'       => '1',
       'maxpower'        => '30',
